@@ -1,0 +1,70 @@
+version: "3.1"
+
+# https://docs.docker.com/compose/environment-variables/
+# https://hub.docker.com/_/postgres
+# https://dzone.com/articles/using-postgresql-pgoutput-plugin-for-change-data-c
+# https://docs.confluent.io/debezium-connect-postgres-source/current/postgres_source_connector_config.html
+# https://stackoverflow.com/questions/59194471/how-set-the-server-name-of-postgres-using-docker-compose
+# https://docs.microsoft.com/en-us/azure/event-hubs/event-hubs-kafka-connect-debezium#configure-and-start-the-debezium-postgresql-source-connector
+
+# Docker Compose
+# https://github.com/compose-spec/compose-spec/blob/master/spec.md
+
+# After everything is running, you can run these commands to make sure it's ready:
+# Show all running containers: docker ps
+# Postgres: docker exec <pg container id> pg_isready
+# Postgres - list all tables: docker exec <pg container id> psql -U admin -d test-db -c "\l"
+
+# To rebuild all of the containers (after you make changes): docker compose up --build --force-recreate
+
+# Misc troubleshooting:
+# https://stackoverflow.com/questions/62786240/use-debezium-link-postgresql-11-couldnt-obtain-encoding-for-database-test
+
+# The "easy way" - using an older version of Postgres https://hevodata.com/learn/kafka-cdc-postgres/ 
+
+services:
+  psqlserver:
+    image: postgres:13.2
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: test-db
+    ports:
+      - 5432:5432
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
+
+  zookeeper:
+    image: debezium/zookeeper:${DEBEZIUM_VERSION}
+    ports:
+      - 2181:2181
+      - 2888:2888
+      - 3888:3888
+
+  kafka:
+    image: debezium/kafka:${DEBEZIUM_VERSION}
+    ports:
+      - 9092:9092
+    links:
+      - zookeeper
+    environment:
+      - ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+
+  connect:
+    image: debezium/connect:${DEBEZIUM_VERSION}
+    ports:
+      - 8083:8083
+    links:
+      - kafka
+    environment:
+      - BOOTSTRAP_SERVERS=kafka:9092
+      - GROUP_ID=dbz
+      - CONFIG_STORAGE_TOPIC=my_connect_configs
+      - OFFSET_STORAGE_TOPIC=my_connect_offsets
+      - STATUS_STORAGE_TOPIC=my_connect_statuses

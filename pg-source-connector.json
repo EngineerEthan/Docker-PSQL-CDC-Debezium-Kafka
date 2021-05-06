@@ -1,0 +1,15 @@
+{
+  "name": "cdc-test-db",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "http://localhost",
+    "database.port": "5432",
+    "database.user": "admin",
+    "database.password": "password",
+    "database.dbname": "test-db",
+    "database.server.name": "psqlserver",
+    "plugin.name": "pgoutput",
+    "publication.name": "testpublication",
+    "publication.autocreate.mode": "filtered"
+  }
+}

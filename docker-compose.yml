@@ -6,6 +6,8 @@ version: "3.1"
 # https://docs.confluent.io/debezium-connect-postgres-source/current/postgres_source_connector_config.html
 # https://stackoverflow.com/questions/59194471/how-set-the-server-name-of-postgres-using-docker-compose
 # https://docs.microsoft.com/en-us/azure/event-hubs/event-hubs-kafka-connect-debezium#configure-and-start-the-debezium-postgresql-source-connector
+# https://blog.dbi-services.com/postgresql-when-wal_level-to-logical/ 
+# https://www.baeldung.com/ops/kafka-list-topics
 
 # Docker Compose
 # https://github.com/compose-spec/compose-spec/blob/master/spec.md
@@ -14,11 +16,20 @@ version: "3.1"
 # Show all running containers: docker ps
 # Postgres: docker exec <pg container id> pg_isready
 # Postgres - list all tables: docker exec <pg container id> psql -U admin -d test-db -c "\l"
+# Kafka - to dig around... Note: you have to use the name of the service (i.e. zookeeper or kafka) instead of "localhost"
+#   `docker exec -it docker-psql-cdc-debezium-kafka_kafka_1 bash`
+#   Then, cd into the bin folder. Lots of kafka tools are included in here (just do an `ls`)
+#   For example: ./kafka-console-consumer.sh --topic psqlserver.public.etltest --bootstrap-server kafka:9092 --from-beginning
+#   or: ./kafka-topics.sh --bootstrap-server=kafka:9092 --list
+#   or: ./bin/zookeeper-shell.sh zookeeper:2181 ls /brokers/ids
 
 # To rebuild all of the containers (after you make changes): docker compose up --build --force-recreate
 
 # Misc troubleshooting:
 # https://stackoverflow.com/questions/62786240/use-debezium-link-postgresql-11-couldnt-obtain-encoding-for-database-test
+# https://rmoff.net/2018/08/02/kafka-listeners-explained/
+# Remove Kafka Connect connector: curl -X DELETE http://localhost:8083/connectors/cdc-test-db
+# Add Kafka Connect connector: curl -X POST -H "Content-Type: application/json" --data @pg-source-connector.json http://localhost:8083/connectors
 
 # The "easy way" - using an older version of Postgres https://hevodata.com/learn/kafka-cdc-postgres/ 
 
@@ -32,12 +43,18 @@ services:
       POSTGRES_DB: test-db
     ports:
       - 5432:5432
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
 
   adminer:
     image: adminer
     restart: always
     ports:
       - 8080:8080
+    depends_on: 
+      - psqlserver
 
   zookeeper:
     image: debezium/zookeeper:${DEBEZIUM_VERSION}
@@ -45,6 +62,8 @@ services:
       - 2181:2181
       - 2888:2888
       - 3888:3888
+    depends_on: 
+      - psqlserver
 
   kafka:
     image: debezium/kafka:${DEBEZIUM_VERSION}
@@ -55,6 +74,8 @@ services:
     environment:
       - ZOOKEEPER_CONNECT=zookeeper:2181
       - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+    depends_on: 
+      - psqlserver
 
   connect:
     image: debezium/connect:${DEBEZIUM_VERSION}
@@ -68,3 +89,5 @@ services:
       - CONFIG_STORAGE_TOPIC=my_connect_configs
       - OFFSET_STORAGE_TOPIC=my_connect_offsets
       - STATUS_STORAGE_TOPIC=my_connect_statuses
+    depends_on: 
+      - psqlserver

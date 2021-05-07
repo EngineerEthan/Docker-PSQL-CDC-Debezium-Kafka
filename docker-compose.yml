@@ -6,7 +6,7 @@ version: "3.1"
 # https://docs.confluent.io/debezium-connect-postgres-source/current/postgres_source_connector_config.html
 # https://stackoverflow.com/questions/59194471/how-set-the-server-name-of-postgres-using-docker-compose
 # https://docs.microsoft.com/en-us/azure/event-hubs/event-hubs-kafka-connect-debezium#configure-and-start-the-debezium-postgresql-source-connector
-# https://blog.dbi-services.com/postgresql-when-wal_level-to-logical/ 
+# https://blog.dbi-services.com/postgresql-when-wal_level-to-logical/
 # https://www.baeldung.com/ops/kafka-list-topics
 
 # Docker Compose
@@ -31,9 +31,39 @@ version: "3.1"
 # Remove Kafka Connect connector: curl -X DELETE http://localhost:8083/connectors/cdc-test-db
 # Add Kafka Connect connector: curl -X POST -H "Content-Type: application/json" --data @pg-source-connector.json http://localhost:8083/connectors
 
-# The "easy way" - using an older version of Postgres https://hevodata.com/learn/kafka-cdc-postgres/ 
+# The "easy way" - using an older version of Postgres https://hevodata.com/learn/kafka-cdc-postgres/
 
 services:
+  akhq:
+    image: tchiotludo/akhq
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka-server:
+              properties:
+                bootstrap.servers: "kafka:9092"
+              schema-registry:
+                url: "http://schema-registry:8085"
+              connect:
+                - name: "connect"
+                  url: "http://connect:8083"
+    ports:
+      - 4001:8080
+    links:
+      - kafka
+      - schema-registry
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry
+    depends_on:
+      - kafka
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "PLAINTEXT://kafka:9092"
+      SCHEMA_REGISTRY_HOST_NAME: "schema-registry"
+      SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8085"
+      SCHEMA_REGISTRY_LOG4J_ROOT_LOGLEVEL: "INFO"
+
   psqlserver:
     image: postgres:13.2
     restart: always
@@ -53,7 +83,7 @@ services:
     restart: always
     ports:
       - 8080:8080
-    depends_on: 
+    depends_on:
       - psqlserver
 
   zookeeper:
@@ -62,7 +92,7 @@ services:
       - 2181:2181
       - 2888:2888
       - 3888:3888
-    depends_on: 
+    depends_on:
       - psqlserver
 
   kafka:
@@ -74,7 +104,7 @@ services:
     environment:
       - ZOOKEEPER_CONNECT=zookeeper:2181
       - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
-    depends_on: 
+    depends_on:
       - psqlserver
 
   connect:
@@ -89,5 +119,5 @@ services:
       - CONFIG_STORAGE_TOPIC=my_connect_configs
       - OFFSET_STORAGE_TOPIC=my_connect_offsets
       - STATUS_STORAGE_TOPIC=my_connect_statuses
-    depends_on: 
+    depends_on:
       - psqlserver
